@@ -1,0 +1,139 @@
+name: Upstream Sync Watch
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 3 * * 1'
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: macos-26
+    timeout-minutes: 20
+    steps:
+      - name: Checkout Aips
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASELINE="$(tr -d '[:space:]' < UPSTREAM_VERSION)"
+          AIPS_VERSION="$(tr -d '[:space:]' < AIPS_VERSION)"
+          test -n "$BASELINE"
+          test -n "$AIPS_VERSION"
+          echo "BASELINE=$BASELINE" >> "$GITHUB_ENV"
+          echo "AIPS_VERSION=$AIPS_VERSION" >> "$GITHUB_ENV"
+          echo "Current Aips: $AIPS_VERSION"
+          echo "Current upstream baseline: $BASELINE"
+
+      - name: Fetch latest upstream release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          LATEST="$(gh api repos/robbietilton/Compositor/releases/latest --jq '.tag_name')"
+          test -n "$LATEST"
+          echo "LATEST=$LATEST" >> "$GITHUB_ENV"
+          echo "Latest upstream: $LATEST"
+
+      - name: Fetch upstream Git history
+        shell: bash
+        run: |
+          set -euo pipefail
+          git remote remove upstream 2>/dev/null || true
+          git remote add upstream https://github.com/robbietilton/Compositor.git
+          git fetch --no-tags upstream "refs/tags/$BASELINE:refs/tags/upstream-$BASELINE"
+          git fetch --no-tags upstream "refs/tags/$LATEST:refs/tags/upstream-$LATEST"
+
+      - name: Build synchronization report
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          BASE_REF="upstream-$BASELINE"
+          LATEST_REF="upstream-$LATEST"
+
+          mkdir -p upstream-report
+
+          git diff --name-only "$BASE_REF" "$LATEST_REF" | sort -u > upstream-report/upstream-changed.txt
+          git diff --name-only "$BASE_REF" HEAD | sort -u > upstream-report/aips-changed.txt
+          comm -12 upstream-report/upstream-changed.txt upstream-report/aips-changed.txt > upstream-report/potential-conflicts.txt
+
+          UPSTREAM_COUNT="$(wc -l < upstream-report/upstream-changed.txt | tr -d ' ')"
+          AIPS_COUNT="$(wc -l < upstream-report/aips-changed.txt | tr -d ' ')"
+          CONFLICT_COUNT="$(wc -l < upstream-report/potential-conflicts.txt | tr -d ' ')"
+
+          {
+            echo "# Aips upstream synchronization report"
+            echo
+            echo "- Aips version: `$AIPS_VERSION`"
+            echo "- Current upstream baseline: `$BASELINE`"
+            echo "- Latest upstream release: `$LATEST`"
+            echo "- Upstream-changed files: **$UPSTREAM_COUNT**"
+            echo "- Aips-modified files vs baseline: **$AIPS_COUNT**"
+            echo "- Potential conflict files: **$CONFLICT_COUNT**"
+            echo
+
+            if [ "$BASELINE" = "$LATEST" ]; then
+              echo "## Status"
+              echo
+              echo "Aips is already based on the latest upstream release."
+            else
+              echo "## Potential conflicts"
+              echo
+              if [ "$CONFLICT_COUNT" -eq 0 ]; then
+                echo "No overlapping changed files were detected."
+              else
+                sed 's/^/- `/; s/$/`/' upstream-report/potential-conflicts.txt
+              fi
+
+              echo
+              echo "## Files changed upstream"
+              echo
+              sed 's/^/- `/; s/$/`/' upstream-report/upstream-changed.txt
+
+              echo
+              echo "## Aips files changed relative to baseline"
+              echo
+              sed 's/^/- `/; s/$/`/' upstream-report/aips-changed.txt
+            fi
+
+            echo
+            echo "## Rule"
+            echo
+            echo "This workflow reports only. It never merges upstream code or changes `UPSTREAM_VERSION` automatically."
+          } > upstream-report/report.md
+
+          cat upstream-report/report.md
+
+      - name: Upload report
+        uses: actions/upload-artifact@v4
+        with:
+          name: upstream-sync-${{ env.BASELINE }}-to-${{ env.LATEST }}
+          path: upstream-report/
+          retention-days: 30
+
+      - name: Open issue for new upstream release
+        if: env.BASELINE != env.LATEST
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TITLE="Upstream sync: $LATEST"
+
+          EXISTING="$(gh issue list             --state open             --search "$TITLE in:title"             --json title             --jq '.[].title' | grep -Fx "$TITLE" || true)"
+
+          if [ -n "$EXISTING" ]; then
+            echo "Issue already exists: $TITLE"
+            exit 0
+          fi
+
+          gh issue create             --title "$TITLE"             --body-file upstream-report/report.md
