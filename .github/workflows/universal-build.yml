@@ -4,12 +4,14 @@ on:
   workflow_dispatch:
   push:
     branches: [ main ]
+    tags:
+      - 'v*'
     paths:
       - 'aips-overlay/**'
       - '.github/workflows/universal-build.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -18,6 +20,26 @@ jobs:
     steps:
       - name: Checkout Aips overlay
         uses: actions/checkout@v4
+
+      - name: Derive version
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION="0.0.${GITHUB_RUN_NUMBER}"
+          fi
+
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Unsupported version derived from ref: $VERSION"
+            exit 1
+          fi
+
+          echo "AIPS_VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "AIPS_BUILD_NUMBER=$GITHUB_RUN_NUMBER" >> "$GITHUB_ENV"
+          echo "Version: $VERSION"
+          echo "Build: $GITHUB_RUN_NUMBER"
 
       - name: Show runner
         run: |
@@ -56,23 +78,37 @@ jobs:
           -derivedDataPath DerivedData
           ARCHS='arm64 x86_64'
           ONLY_ACTIVE_ARCH=NO
+          MARKETING_VERSION="$AIPS_VERSION"
+          CURRENT_PROJECT_VERSION="$AIPS_BUILD_NUMBER"
           CODE_SIGN_IDENTITY=-
           build
 
-      - name: Verify Universal 2 executable
+      - name: Verify version and Universal 2 executable
         working-directory: AipsSource
         run: |
           set -euo pipefail
           APP="DerivedData/Build/Products/Release/Aips.app"
           BIN="$APP/Contents/MacOS/Aips"
+          PLIST="$APP/Contents/Info.plist"
+
           test -d "$APP"
           test -f "$BIN"
+          test -f "$PLIST"
+
+          SHORT_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$PLIST")"
+          BUILD_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$PLIST")"
+
+          echo "CFBundleShortVersionString=$SHORT_VERSION"
+          echo "CFBundleVersion=$BUILD_VERSION"
+
+          test "$SHORT_VERSION" = "$AIPS_VERSION"
+          test "$BUILD_VERSION" = "$AIPS_BUILD_NUMBER"
+
           file "$BIN"
           lipo -info "$BIN"
 
           ARCHS="$(lipo -archs "$BIN")"
           echo "Architectures: $ARCHS"
-
           echo "$ARCHS" | grep -qw arm64
           echo "$ARCHS" | grep -qw x86_64
 
@@ -91,7 +127,6 @@ jobs:
             if [[ "$info" == *"Mach-O"* ]]; then
               archs="$(lipo -archs "$f" 2>/dev/null || true)"
               echo "$f :: $archs"
-
               if [[ "$archs" != *"arm64"* || "$archs" != *"x86_64"* ]]; then
                 echo "::error::Non-universal Mach-O: $f ($archs)"
                 failed=1
@@ -104,11 +139,41 @@ jobs:
       - name: Package Universal 2 app
         working-directory: AipsSource
         run: |
-          ditto -c -k --sequesterRsrc --keepParent             DerivedData/Build/Products/Release/Aips.app             ../Aips-macOS26-universal2.zip
+          OUT="../Aips-${AIPS_VERSION}-macOS-universal2-adhoc.zip"
+          ditto -c -k --sequesterRsrc --keepParent             DerivedData/Build/Products/Release/Aips.app             "$OUT"
+          cd ..
+          shasum -a 256 "Aips-${AIPS_VERSION}-macOS-universal2-adhoc.zip"             > "Aips-${AIPS_VERSION}-macOS-universal2-adhoc.zip.sha256"
+          cat "Aips-${AIPS_VERSION}-macOS-universal2-adhoc.zip.sha256"
 
       - name: Upload Universal 2 artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Aips-macOS26-universal2
-          path: Aips-macOS26-universal2.zip
+          name: Aips-${{ env.AIPS_VERSION }}-macOS-universal2-adhoc
+          path: |
+            Aips-${{ env.AIPS_VERSION }}-macOS-universal2-adhoc.zip
+            Aips-${{ env.AIPS_VERSION }}-macOS-universal2-adhoc.zip.sha256
           retention-days: 14
+
+      - name: Publish GitHub prerelease for tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ZIP="Aips-${AIPS_VERSION}-macOS-universal2-adhoc.zip"
+          SHA="${ZIP}.sha256"
+
+          cat > release-notes.md <<EOF
+          ## Aips ${AIPS_VERSION}
+
+          Universal 2 build for macOS, containing both **arm64** and **x86_64** architectures.
+
+          **Important:** this automated build uses ad-hoc signing and is **not Apple-notarized**. It is intended for testing and community distribution until the Developer ID / notarization workflow is configured.
+
+          Files:
+          - ${ZIP}
+          - ${SHA}
+          EOF
+
+          gh release create "$GITHUB_REF_NAME"             "$ZIP"             "$SHA"             --title "Aips $GITHUB_REF_NAME"             --notes-file release-notes.md             --prerelease
