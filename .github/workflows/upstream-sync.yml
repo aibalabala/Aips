@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   check:
-    runs-on: macos-26
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - name: Checkout Aips
