@@ -12,7 +12,7 @@ on:
       - '.github/workflows/dmg-installer.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-dmg:
@@ -104,3 +104,19 @@ jobs:
             Aips-${{ env.AIPS_VERSION }}-macOS-universal2-adhoc.dmg
             Aips-${{ env.AIPS_VERSION }}-macOS-universal2-adhoc.dmg.sha256
           retention-days: 30
+
+      - name: Attach DMG directly to current Aips prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="v$AIPS_VERSION"
+          DMG="Aips-${AIPS_VERSION}-macOS-universal2-adhoc.dmg"
+          SHA="$DMG.sha256"
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$DMG" "$SHA" --clobber
+          else
+            echo "::warning::Release $TAG does not exist; DMG remains available as a workflow artifact."
+          fi
