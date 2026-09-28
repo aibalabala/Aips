@@ -1,0 +1,82 @@
+name: Build Full Source Branch
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - '.github/workflows/build-full-source-branch.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Assemble full source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch v1.3.7 https://github.com/robbietilton/Compositor.git "$RUNNER_TEMP/full"
+          rm -rf "$RUNNER_TEMP/full/.git"
+          rsync -a aips-overlay/ "$RUNNER_TEMP/full/"
+
+      - name: Prepare full-source branch
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git switch -C full-source
+
+          # Remove tracked overlay-era project files while preserving .git.
+          git rm -r --ignore-unmatch aips-overlay README.md
+          rm -rf Compositor CompositorTests CompositorUITests Compositor.xcodeproj docs scripts
+          rm -f AGENTS.md LICENSE appcast.xml .gitignore
+
+          cp -R "$RUNNER_TEMP/full/." ./
+
+          # Keep current CI definitions, then convert them to direct-root mode.
+          rm -f .github/workflows/aips-verify.yml
+          rm -f .github/workflows/macos26.yml
+          cp "$RUNNER_TEMP/full/.github/workflows/verify.yml" .github/workflows/verify.yml
+
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+
+          for name in ["release-build.yml", "universal-build.yml", "notarized-release.yml"]:
+              path = Path(".github/workflows") / name
+              if not path.exists():
+                  continue
+              text = path.read_text()
+              text = re.sub(
+                  r"\n      - name: Fetch upstream Compositor 1\.3\.7\n        run: \|\n(?:          .*\n)+?\n      - name: Apply Aips[^\n]*\n        run:.*\n",
+                  "\n",
+                  text,
+              )
+              text = text.replace("        working-directory: AipsSource\n", "")
+              text = text.replace("../Aips-", "Aips-")
+              text = text.replace("../Aips", "Aips")
+              text = text.replace("      - 'aips-overlay/**'\n", "")
+              path.write_text(text)
+          PY
+
+          test -f Compositor.xcodeproj/project.pbxproj
+          test -d Compositor
+          test -d CompositorTests
+          test ! -e aips-overlay
+
+      - name: Commit branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Migrate Aips to full source repository"
+          git push --force-with-lease origin HEAD:full-source
