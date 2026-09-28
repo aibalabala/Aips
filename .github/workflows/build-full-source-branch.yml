@@ -33,50 +33,25 @@ jobs:
 
           git switch -C full-source
 
-          # Remove tracked overlay-era project files while preserving .git.
-          git rm -r --ignore-unmatch aips-overlay README.md
-          rm -rf Compositor CompositorTests CompositorUITests Compositor.xcodeproj docs scripts
-          rm -f AGENTS.md LICENSE appcast.xml .gitignore
+          # Keep .github byte-for-byte identical to main so GITHUB_TOKEN
+          # does not need workflow-write permission.
+          rm -rf Compositor CompositorTests CompositorUITests Compositor.xcodeproj Config docs scripts
+          rm -f AGENTS.md LICENSE appcast.xml .gitignore README.md
+          rm -rf aips-overlay
 
-          cp -R "$RUNNER_TEMP/full/." ./
-
-          # Keep current CI definitions, then convert them to direct-root mode.
-          rm -f .github/workflows/aips-verify.yml
-          rm -f .github/workflows/macos26.yml
-          cp "$RUNNER_TEMP/full/.github/workflows/verify.yml" .github/workflows/verify.yml
-
-          python3 <<'PY'
-          from pathlib import Path
-          import re
-
-          for name in ["release-build.yml", "universal-build.yml", "notarized-release.yml"]:
-              path = Path(".github/workflows") / name
-              if not path.exists():
-                  continue
-              text = path.read_text()
-              text = re.sub(
-                  r"\n      - name: Fetch upstream Compositor 1\.3\.7\n        run: \|\n(?:          .*\n)+?\n      - name: Apply Aips[^\n]*\n        run:.*\n",
-                  "\n",
-                  text,
-              )
-              text = text.replace("        working-directory: AipsSource\n", "")
-              text = text.replace("../Aips-", "Aips-")
-              text = text.replace("../Aips", "Aips")
-              text = text.replace("      - 'aips-overlay/**'\n", "")
-              path.write_text(text)
-          PY
+          rsync -a --exclude '.github/' "$RUNNER_TEMP/full/" ./
 
           test -f Compositor.xcodeproj/project.pbxproj
           test -d Compositor
           test -d CompositorTests
           test ! -e aips-overlay
 
-      - name: Commit branch
+      - name: Commit source-only migration
         shell: bash
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -m "Migrate Aips to full source repository"
+          git commit -m "Migrate Aips source to repository root"
           git push --force-with-lease origin HEAD:full-source
