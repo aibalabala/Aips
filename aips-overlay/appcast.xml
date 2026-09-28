@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+  <channel>
+    <title>Compositor</title>
+    <item>
+      <title>Version 1.3.7</title>
+      <pubDate>Sun, 27 Sep 2026 23:14:02 +0000</pubDate>
+      <sparkle:version>34</sparkle:version>
+      <sparkle:shortVersionString>1.3.7</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+      <link>https://github.com/robbietilton/Compositor/releases/tag/v1.3.7</link>
+      <enclosure url="https://github.com/robbietilton/Compositor/releases/download/v1.3.7/Compositor.dmg" sparkle:edSignature="OQ5U18KWacK4oaZXgUDhdhxkijx7zBy4zkOUSfyFod9tc8OSaGoMpXq2BWPxaURxOQsAY75udMvnn4aI2CtdBQ==" length="6595198" type="application/octet-stream"/>
+    </item>
+  </channel>
+</rss>
