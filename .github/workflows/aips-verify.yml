@@ -1,0 +1,111 @@
+name: Aips 1.3.7 Verify
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'aips-overlay/**'
+      - '.github/workflows/aips-verify.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - name: Checkout Aips overlay
+        uses: actions/checkout@v4
+
+      - name: Show runner
+        run: |
+          sw_vers
+          uname -m
+          xcodebuild -version
+          swift --version
+
+      - name: Fetch upstream Compositor 1.3.7
+        run: |
+          git clone --depth 1 --branch v1.3.7 https://github.com/robbietilton/Compositor.git AipsSource
+          rm -rf AipsSource/.git
+
+      - name: Apply Aips localization overlay
+        run: |
+          rsync -a aips-overlay/ AipsSource/
+          echo "Overlay files:"
+          find aips-overlay -type f | wc -l
+
+      - name: Select Xcode 26.6
+        run: sudo xcode-select -s /Applications/Xcode_26.6.app
+
+      - name: Resolve Swift packages
+        working-directory: AipsSource
+        run: >
+          xcodebuild -resolvePackageDependencies
+          -project Compositor.xcodeproj
+          -scheme Compositor
+          -onlyUsePackageVersionsFromResolvedFile
+
+      - name: Build for testing
+        id: build
+        working-directory: AipsSource
+        run: >
+          xcodebuild build-for-testing
+          -project Compositor.xcodeproj
+          -scheme Compositor
+          -destination 'platform=macOS,arch=arm64'
+          -configuration Debug
+          -derivedDataPath DerivedData
+          CODE_SIGN_IDENTITY=-
+
+      - name: Run unit tests in parallel
+        working-directory: AipsSource
+        run: >
+          xcodebuild test-without-building
+          -project Compositor.xcodeproj
+          -scheme Compositor
+          -destination 'platform=macOS,arch=arm64'
+          -derivedDataPath DerivedData
+          -resultBundlePath ParallelResults.xcresult
+          -parallel-testing-enabled YES
+          -skip-testing:CompositorTests/FloatingPanelTests
+          -skip-testing:CompositorTests/SliderSnapTests
+
+      - name: Run window tests serially
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        working-directory: AipsSource
+        run: >
+          xcodebuild test-without-building
+          -project Compositor.xcodeproj
+          -scheme Compositor
+          -destination 'platform=macOS,arch=arm64'
+          -derivedDataPath DerivedData
+          -resultBundlePath SerialResults.xcresult
+          -parallel-testing-enabled NO
+          -only-testing:CompositorTests/FloatingPanelTests
+          -only-testing:CompositorTests/SliderSnapTests
+
+      - name: Package assembled source
+        if: always()
+        run: |
+          rm -rf AipsSource/DerivedData AipsSource/*.xcresult
+          ditto -c -k --sequesterRsrc --keepParent AipsSource Aips-1.3.7-assembled-source.zip
+
+      - name: Upload assembled source
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aips-1.3.7-assembled-source
+          path: Aips-1.3.7-assembled-source.zip
+          retention-days: 7
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aips-test-results
+          path: 'AipsSource/*.xcresult'
+          retention-days: 7
+          if-no-files-found: ignore
