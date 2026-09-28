@@ -3,8 +3,11 @@ name: Aips Release Build
 on:
   workflow_dispatch:
   push:
+    branches: [ main ]
     tags:
       - 'v*'
+    paths:
+      - '.github/workflows/release-build.yml'
 
 permissions:
   contents: read
