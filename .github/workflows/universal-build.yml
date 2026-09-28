@@ -49,7 +49,14 @@ jobs:
             exit 1
           fi
 
+          APP_VERSION="${VERSION%%-aips.*}"
+          if ! [[ "$APP_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Invalid Apple app version derived from $VERSION: $APP_VERSION"
+            exit 1
+          fi
+
           echo "AIPS_VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "AIPS_APP_VERSION=$APP_VERSION" >> "$GITHUB_ENV"
           echo "AIPS_BUILD_NUMBER=$GITHUB_RUN_NUMBER" >> "$GITHUB_ENV"
           echo "Version: $VERSION"
           echo "Build: $GITHUB_RUN_NUMBER"
@@ -82,7 +89,7 @@ jobs:
           -derivedDataPath DerivedData
           ARCHS='arm64 x86_64'
           ONLY_ACTIVE_ARCH=NO
-          MARKETING_VERSION="$AIPS_VERSION"
+          MARKETING_VERSION="$AIPS_APP_VERSION"
           CURRENT_PROJECT_VERSION="$AIPS_BUILD_NUMBER"
           CODE_SIGN_IDENTITY=-
           build
@@ -104,7 +111,7 @@ jobs:
           echo "CFBundleShortVersionString=$SHORT_VERSION"
           echo "CFBundleVersion=$BUILD_VERSION"
 
-          test "$SHORT_VERSION" = "$AIPS_VERSION"
+          test "$SHORT_VERSION" = "$AIPS_APP_VERSION"
           test "$BUILD_VERSION" = "$AIPS_BUILD_NUMBER"
 
           file "$BIN"
