@@ -94,6 +94,23 @@ jobs:
           CODE_SIGN_IDENTITY=-
           build
 
+      - name: Re-sign bundled code ad-hoc
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP="DerivedData/Build/Products/Release/Aips.app"
+
+          # Re-sign nested code deepest-first so every bundled framework/plugin
+          # uses the same ad-hoc identity as the host app.
+          while IFS= read -r -d '' item; do
+            /usr/bin/codesign --force --sign - "$item"
+          done < <(
+            find "$APP/Contents" -depth               \( -name '*.framework' -o -name '*.dylib' -o -name '*.xpc' -o -name '*.app' \)               -print0
+          )
+
+          /usr/bin/codesign --force --deep --sign - "$APP"
+          /usr/bin/codesign --verify --deep --strict --verbose=2 "$APP"
+
       - name: Verify version and Universal 2 executable
         run: |
           set -euo pipefail
