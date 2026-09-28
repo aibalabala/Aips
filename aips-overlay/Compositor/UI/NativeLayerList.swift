@@ -907,7 +907,7 @@ private final class LayerCell: NSTableCellView, NSTextFieldDelegate {
         linkButton.image = layer.mask?.isLinked == false ? nil : Self.linkImage
         linkButton.isEnabled = thumbnail.isEnabled
         linkButton.toolTip = localized(layer.mask?.isLinked == false ? "Link layer and mask so they move together"
-            : "Unlink layer and mask to move or transform them separately"
+            : "Unlink layer and mask to move or transform them separately")
         linkButton.setAccessibilityLabel(String(localized: layer.mask?.isLinked == false ? "Link mask: \(layer.name)" : "Unlink mask: \(layer.name)"))
         thumbnail.toolTip = localized(editableText ? "Editable text layer" : "Select image pixels")
         maskThumbnail.toolTip = localized("Select layer mask; Shift-click to enable/disable; Cmd-click to select its black areas (Cmd-Shift adds, Cmd-Option subtracts)")
