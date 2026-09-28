@@ -3,6 +3,11 @@
 **Aips** 是基于 Compositor 的简体中文本地化分支，由 **Ai巴拉巴拉 · aibalabala.com** 维护。
 当前项目只做两件事：跟随官方 Compositor 同步更新，以及简体中文本地化；不新增独立编辑功能。
 
+- **Aips 版本：** `1.3.7-aips.1`
+- **上游基线：** Compositor `v1.3.7`
+- **变更记录：** [CHANGELOG.md](CHANGELOG.md)
+- **上游同步规则：** [UPSTREAM_SYNC.md](UPSTREAM_SYNC.md)
+
 > Original project: **Compositor** by Robbie Tilton. This is an independent community localization fork, not an official Compositor release. The original MIT License and attribution are retained.
 
 ---
