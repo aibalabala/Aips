@@ -7,6 +7,10 @@ on:
     tags:
       - 'v*'
     paths:
+      - 'Compositor/**'
+      - 'Compositor.xcodeproj/**'
+      - 'Config/**'
+      - 'Package.resolved'
       - '.github/workflows/release-build.yml'
 
 permissions:
@@ -17,7 +21,7 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 60
     steps:
-      - name: Checkout Aips overlay
+      - name: Checkout Aips source
         uses: actions/checkout@v4
 
       - name: Show runner
@@ -27,20 +31,10 @@ jobs:
           xcodebuild -version
           swift --version
 
-      - name: Fetch upstream Compositor 1.3.7
-        run: |
-          git clone --depth 1 --branch v1.3.7 https://github.com/robbietilton/Compositor.git AipsSource
-          rm -rf AipsSource/.git
-
-      - name: Apply Aips overlay
-        run: |
-          rsync -a aips-overlay/ AipsSource/
-
       - name: Select Xcode 26.6
         run: sudo xcode-select -s /Applications/Xcode_26.6.app
 
       - name: Resolve Swift packages
-        working-directory: AipsSource
         run: >
           xcodebuild -resolvePackageDependencies
           -project Compositor.xcodeproj
@@ -48,7 +42,6 @@ jobs:
           -onlyUsePackageVersionsFromResolvedFile
 
       - name: Build Aips.app
-        working-directory: AipsSource
         run: >
           xcodebuild
           -project Compositor.xcodeproj
@@ -59,20 +52,16 @@ jobs:
           CODE_SIGN_IDENTITY=-
           build
 
-      - name: Locate app
-        id: app
-        working-directory: AipsSource
+      - name: Verify app
         run: |
           APP_PATH="DerivedData/Build/Products/Release/Aips.app"
           test -d "$APP_PATH"
-          echo "path=$APP_PATH" >> "$GITHUB_OUTPUT"
-          /usr/bin/codesign -dv --verbose=4 "$APP_PATH" 2>&1 || true
+          /usr/bin/codesign --verify --deep --strict --verbose=2 "$APP_PATH"
           /usr/bin/file "$APP_PATH/Contents/MacOS/Aips"
 
       - name: Package app
-        working-directory: AipsSource
         run: |
-          ditto -c -k --sequesterRsrc --keepParent             DerivedData/Build/Products/Release/Aips.app             ../Aips-macOS26-arm64.zip
+          ditto -c -k --sequesterRsrc --keepParent             DerivedData/Build/Products/Release/Aips.app             Aips-macOS26-arm64.zip
 
       - name: Upload app artifact
         uses: actions/upload-artifact@v4
