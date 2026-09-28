@@ -52,6 +52,20 @@ jobs:
           CODE_SIGN_IDENTITY=-
           build
 
+      - name: Re-sign bundled code ad-hoc
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP="DerivedData/Build/Products/Release/Aips.app"
+
+          while IFS= read -r -d '' item; do
+            /usr/bin/codesign --force --sign - "$item"
+          done < <(
+            find "$APP/Contents" -depth               \( -name '*.framework' -o -name '*.dylib' -o -name '*.xpc' -o -name '*.app' \)               -print0
+          )
+
+          /usr/bin/codesign --force --deep --sign - "$APP"
+
       - name: Verify app
         run: |
           APP_PATH="DerivedData/Build/Products/Release/Aips.app"
