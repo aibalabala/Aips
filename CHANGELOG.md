@@ -8,6 +8,15 @@ Example: `1.3.7-aips.1`.
 
 The macOS app's `CFBundleShortVersionString` remains the numeric upstream-compatible version (for example `1.3.7`). The Aips revision is tracked by Git tags, `AIPS_VERSION`, release notes, and build metadata.
 
+## 1.3.7-aips.2 — 2026-09-28
+
+Base: Compositor v1.3.7.
+
+### Fixed
+- Fixed launch-time DYLD failure caused by mismatched code-signing identities between the ad-hoc-signed Aips host app and the bundled Sparkle framework.
+- Universal 2 and ARM64 CI now re-sign bundled frameworks, dylibs, XPC services, and nested apps before re-signing the host Aips.app.
+- DMG packaging now uses the corrected consistently signed application bundle.
+
 ## 1.3.7-aips.1 — 2026-09-28
 
 Base: Compositor v1.3.7.
