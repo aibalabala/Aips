@@ -2,9 +2,13 @@ name: Aips 1.3.7 Verify
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, full-source ]
     paths:
-      - 'aips-overlay/**'
+      - 'Compositor/**'
+      - 'CompositorTests/**'
+      - 'CompositorUITests/**'
+      - 'Compositor.xcodeproj/**'
+      - 'Config/**'
       - '.github/workflows/aips-verify.yml'
   workflow_dispatch:
 
@@ -16,7 +20,7 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 60
     steps:
-      - name: Checkout Aips overlay
+      - name: Checkout Aips source
         uses: actions/checkout@v4
 
       - name: Show runner
@@ -26,22 +30,11 @@ jobs:
           xcodebuild -version
           swift --version
 
-      - name: Fetch upstream Compositor 1.3.7
-        run: |
-          git clone --depth 1 --branch v1.3.7 https://github.com/robbietilton/Compositor.git AipsSource
-          rm -rf AipsSource/.git
-
-      - name: Apply Aips localization overlay
-        run: |
-          rsync -a aips-overlay/ AipsSource/
-          echo "Overlay files:"
-          find aips-overlay -type f | wc -l
 
       - name: Select Xcode 26.6
         run: sudo xcode-select -s /Applications/Xcode_26.6.app
 
       - name: Resolve Swift packages
-        working-directory: AipsSource
         run: >
           xcodebuild -resolvePackageDependencies
           -project Compositor.xcodeproj
@@ -50,7 +43,6 @@ jobs:
 
       - name: Build for testing
         id: build
-        working-directory: AipsSource
         run: >
           xcodebuild build-for-testing
           -project Compositor.xcodeproj
@@ -61,7 +53,6 @@ jobs:
           CODE_SIGN_IDENTITY=-
 
       - name: Run unit tests in parallel
-        working-directory: AipsSource
         run: >
           xcodebuild test-without-building
           -project Compositor.xcodeproj
@@ -75,7 +66,6 @@ jobs:
 
       - name: Run window tests serially
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
-        working-directory: AipsSource
         run: >
           xcodebuild test-without-building
           -project Compositor.xcodeproj
@@ -87,25 +77,11 @@ jobs:
           -only-testing:CompositorTests/FloatingPanelTests
           -only-testing:CompositorTests/SliderSnapTests
 
-      - name: Package assembled source
-        if: always()
-        run: |
-          rm -rf AipsSource/DerivedData AipsSource/*.xcresult
-          ditto -c -k --sequesterRsrc --keepParent AipsSource Aips-1.3.7-assembled-source.zip
-
-      - name: Upload assembled source
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: Aips-1.3.7-assembled-source
-          path: Aips-1.3.7-assembled-source.zip
-          retention-days: 7
-
       - name: Upload test results
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: Aips-test-results
-          path: 'AipsSource/*.xcresult'
+          path: '*.xcresult'
           retention-days: 7
           if-no-files-found: ignore
