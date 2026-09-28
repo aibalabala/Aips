@@ -152,13 +152,32 @@ jobs:
           shasum -a 256 "Aips-${AIPS_VERSION}-macOS-universal2-adhoc.zip"             > "Aips-${AIPS_VERSION}-macOS-universal2-adhoc.zip.sha256"
           cat "Aips-${AIPS_VERSION}-macOS-universal2-adhoc.zip.sha256"
 
-      - name: Upload Universal 2 artifact
+      - name: Build DMG installer
+        shell: bash
+        run: |
+          set -euo pipefail
+          STAGE="$RUNNER_TEMP/dmg-stage"
+          DMG="Aips-${AIPS_VERSION}-macOS-universal2-adhoc.dmg"
+
+          rm -rf "$STAGE"
+          mkdir -p "$STAGE"
+          ditto DerivedData/Build/Products/Release/Aips.app "$STAGE/Aips.app"
+          ln -s /Applications "$STAGE/Applications"
+
+          hdiutil create             -volname "Aips ${AIPS_VERSION}"             -srcfolder "$STAGE"             -ov             -format UDZO             "$DMG"
+
+          hdiutil verify "$DMG"
+          shasum -a 256 "$DMG" > "$DMG.sha256"
+
+      - name: Upload Universal 2 artifacts
         uses: actions/upload-artifact@v4
         with:
           name: Aips-${{ env.AIPS_VERSION }}-macOS-universal2-adhoc
           path: |
             Aips-${{ env.AIPS_VERSION }}-macOS-universal2-adhoc.zip
             Aips-${{ env.AIPS_VERSION }}-macOS-universal2-adhoc.zip.sha256
+            Aips-${{ env.AIPS_VERSION }}-macOS-universal2-adhoc.dmg
+            Aips-${{ env.AIPS_VERSION }}-macOS-universal2-adhoc.dmg.sha256
           retention-days: 14
 
       - name: Publish GitHub prerelease
@@ -170,6 +189,8 @@ jobs:
           set -euo pipefail
           ZIP="Aips-${AIPS_VERSION}-macOS-universal2-adhoc.zip"
           SHA="${ZIP}.sha256"
+          DMG="Aips-${AIPS_VERSION}-macOS-universal2-adhoc.dmg"
+          DMGSHA="${DMG}.sha256"
 
           cat > release-notes.md <<EOF
           ## Aips ${AIPS_VERSION}
@@ -181,6 +202,8 @@ jobs:
           Files:
           - ${ZIP}
           - ${SHA}
+          - ${DMG}
+          - ${DMGSHA}
           EOF
 
           if gh release view "$AIPS_RELEASE_TAG" >/dev/null 2>&1; then
@@ -188,4 +211,4 @@ jobs:
             exit 1
           fi
 
-          gh release create "$AIPS_RELEASE_TAG"             "$ZIP"             "$SHA"             --target "$GITHUB_SHA"             --title "Aips $AIPS_RELEASE_TAG"             --notes-file release-notes.md             --prerelease
+          gh release create "$AIPS_RELEASE_TAG"             "$ZIP"             "$SHA"             "$DMG"             "$DMGSHA"             --target "$GITHUB_SHA"             --title "Aips $AIPS_RELEASE_TAG"             --notes-file release-notes.md             --prerelease
