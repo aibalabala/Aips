@@ -25,7 +25,7 @@ struct CameraRawCurveControls: View {
                 .frame(height: 150)
                 .help(localized(edit?.cameraRawCurvePage == .parametric
                       ? "Drag a divider to change which tones the neighboring sliders affect."
-                      : "Drag a point. Click the curve to add one. Double-click a point to remove it.")
+                      : "Drag a point. Click the curve to add one. Double-click a point to remove it."))
             if edit?.cameraRawCurvePage != .point {
                 amount("Highlights", \.highlights, "Lifts or lowers the brightest tones.")
                 amount("Lights", \.lights, "Lifts or lowers the light tones.")
