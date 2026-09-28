@@ -9,6 +9,12 @@ on:
       - 'release/v*'
     tags:
       - 'v*'
+    paths:
+      - 'Compositor/**'
+      - 'Compositor.xcodeproj/**'
+      - 'Config/**'
+      - 'Package.resolved'
+      - '.github/workflows/universal-build.yml'
 
 permissions:
   contents: write
