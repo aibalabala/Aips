@@ -1,0 +1,59 @@
+name: Localization Audit
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'Compositor/**/*.swift'
+      - 'Compositor/Localizable.xcstrings'
+      - 'scripts/localization_audit.py'
+      - '.github/workflows/localization-audit.yml'
+      - 'UPSTREAM_VERSION'
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout Aips
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read upstream baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASELINE="$(tr -d '[:space:]' < UPSTREAM_VERSION)"
+          echo "BASELINE=$BASELINE" >> "$GITHUB_ENV"
+
+      - name: Fetch upstream baseline and latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          LATEST="$(gh api repos/robbietilton/Compositor/releases/latest --jq '.tag_name')"
+          echo "LATEST=$LATEST" >> "$GITHUB_ENV"
+
+          git remote remove upstream 2>/dev/null || true
+          git remote add upstream https://github.com/robbietilton/Compositor.git
+          git fetch --no-tags upstream "refs/tags/$BASELINE:refs/tags/upstream-$BASELINE"
+          git fetch --no-tags upstream "refs/tags/$LATEST:refs/tags/upstream-$LATEST"
+
+      - name: Audit localization coverage
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/localization_audit.py             --catalog Compositor/Localizable.xcstrings             --base-ref "upstream-$BASELINE"             --latest-ref "upstream-$LATEST"             --output localization-audit.md
+
+      - name: Upload localization report
+        uses: actions/upload-artifact@v4
+        with:
+          name: localization-audit-${{ env.BASELINE }}-to-${{ env.LATEST }}
+          path: localization-audit.md
+          retention-days: 30
