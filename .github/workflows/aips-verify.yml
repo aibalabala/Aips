@@ -1,8 +1,8 @@
-name: Aips 1.3.7 Verify
+name: Aips Verify
 
 on:
   push:
-    branches: [ main, full-source ]
+    branches: [ main ]
     paths:
       - 'Compositor/**'
       - 'CompositorTests/**'
