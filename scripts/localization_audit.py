@@ -30,10 +30,13 @@ def git_diff(base_ref: str, latest_ref: str) -> str:
 
 
 def unescape_swift(value: str) -> str:
-    try:
-        return bytes(value, "utf-8").decode("unicode_escape")
-    except Exception:
-        return value
+    # Preserve real UTF-8 characters such as · and Chinese text. Only decode
+    # the small set of escapes that commonly occur in Swift UI literals.
+    return (value
+            .replace(r'\\n', '\n')
+            .replace(r'\\t', '\t')
+            .replace(r'\\"', '"')
+            .replace(r'\\\\', '\\'))
 
 
 def probable_ui_literal(line: str, value: str) -> bool:
@@ -110,7 +113,7 @@ def main() -> int:
         for match in STRING_RE.finditer(line):
             # SF Symbol names are identifiers, not user-facing strings.
             before = line[:match.start()]
-            if re.search(r"systemName:\\s*$", before):
+            if re.search(r"(?:systemName|accessibilityIdentifier):\\s*$", before):
                 continue
 
             raw_value = match.group(1)
