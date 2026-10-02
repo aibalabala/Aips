@@ -42,6 +42,13 @@ jobs:
           git diff --name-only --diff-filter=U | sort -u > "$RUNNER_TEMP/merge-report/conflicts.txt"
           git diff --name-only --cached | sort -u > "$RUNNER_TEMP/merge-report/staged.txt"
 
+          mkdir -p "$RUNNER_TEMP/merge-report/conflict-files"
+          while IFS= read -r path; do
+            [ -n "$path" ] || continue
+            mkdir -p "$RUNNER_TEMP/merge-report/conflict-files/$(dirname "$path")"
+            cp "$path" "$RUNNER_TEMP/merge-report/conflict-files/$path"
+          done < "$RUNNER_TEMP/merge-report/conflicts.txt"
+
           echo "## Upgrade merge result" > "$RUNNER_TEMP/merge-report/report.md"
           echo >> "$RUNNER_TEMP/merge-report/report.md"
           echo "- Base: `v1.3.7`" >> "$RUNNER_TEMP/merge-report/report.md"
