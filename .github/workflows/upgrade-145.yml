@@ -1,0 +1,90 @@
+name: Upgrade Candidate v1.4.5
+
+on:
+  push:
+    branches:
+      - 'upgrade/v1.4.5-aips.1'
+    paths:
+      - '.github/workflows/upgrade-145.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  merge-upstream:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout upgrade branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch upstream tags
+        shell: bash
+        run: |
+          set -euo pipefail
+          git remote remove upstream 2>/dev/null || true
+          git remote add upstream https://github.com/robbietilton/Compositor.git
+          git fetch --no-tags upstream             refs/tags/v1.3.7:refs/tags/upstream-v1.3.7             refs/tags/v1.4.5:refs/tags/upstream-v1.4.5
+
+      - name: Apply upstream delta with three-way merge
+        id: merge
+        shell: bash
+        run: |
+          set +e
+          git diff --binary upstream-v1.3.7 upstream-v1.4.5 > "$RUNNER_TEMP/upstream-145.patch"
+          git apply --3way --index "$RUNNER_TEMP/upstream-145.patch"
+          status=$?
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+
+          mkdir -p "$RUNNER_TEMP/merge-report"
+          git diff --name-only --diff-filter=U | sort -u > "$RUNNER_TEMP/merge-report/conflicts.txt"
+          git diff --name-only --cached | sort -u > "$RUNNER_TEMP/merge-report/staged.txt"
+
+          echo "## Upgrade merge result" > "$RUNNER_TEMP/merge-report/report.md"
+          echo >> "$RUNNER_TEMP/merge-report/report.md"
+          echo "- Base: `v1.3.7`" >> "$RUNNER_TEMP/merge-report/report.md"
+          echo "- Target: `v1.4.5`" >> "$RUNNER_TEMP/merge-report/report.md"
+          echo "- git apply status: `$status`" >> "$RUNNER_TEMP/merge-report/report.md"
+          echo "- Conflict files: `$(wc -l < "$RUNNER_TEMP/merge-report/conflicts.txt" | tr -d ' ')`" >> "$RUNNER_TEMP/merge-report/report.md"
+          echo >> "$RUNNER_TEMP/merge-report/report.md"
+          echo "### Conflicts" >> "$RUNNER_TEMP/merge-report/report.md"
+          if [ -s "$RUNNER_TEMP/merge-report/conflicts.txt" ]; then
+            sed 's/^/- `/; s/$/`/' "$RUNNER_TEMP/merge-report/conflicts.txt" >> "$RUNNER_TEMP/merge-report/report.md"
+          else
+            echo "None." >> "$RUNNER_TEMP/merge-report/report.md"
+          fi
+
+          cat "$RUNNER_TEMP/merge-report/report.md"
+          exit 0
+
+      - name: Upload merge report
+        uses: actions/upload-artifact@v4
+        with:
+          name: upgrade-v1.4.5-merge-report
+          path: ${{ runner.temp }}/merge-report/
+          retention-days: 30
+
+      - name: Stop on unresolved conflicts
+        if: steps.merge.outputs.status != '0'
+        shell: bash
+        run: |
+          echo "::error::Three-way merge has unresolved conflicts. Review merge-report artifact."
+          exit 1
+
+      - name: Record candidate versions
+        shell: bash
+        run: |
+          printf 'v1.4.5\n' > UPSTREAM_VERSION
+          printf '1.4.5-aips.1\n' > AIPS_VERSION
+          git add UPSTREAM_VERSION AIPS_VERSION
+
+      - name: Commit merged upstream
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Merge Compositor v1.4.5 into Aips"
+          git push origin HEAD:upgrade/v1.4.5-aips.1
