@@ -21,7 +21,7 @@ def git_diff(base_ref: str, latest_ref: str) -> str:
     if not base_ref or not latest_ref or base_ref == latest_ref:
         return ""
     proc = subprocess.run(
-        ["git", "diff", "--unified=0", base_ref, latest_ref, "--", "*.swift"],
+        ["git", "diff", "--unified=4", base_ref, latest_ref, "--", "*.swift"],
         check=True,
         capture_output=True,
         text=True,
@@ -79,14 +79,42 @@ def main() -> int:
 
     diff = git_diff(args.base_ref, args.latest_ref)
     added_candidates: set[str] = set()
+    recent: list[str] = []
 
     for raw in diff.splitlines():
-        if not raw.startswith("+") or raw.startswith("+++"):
+        if raw.startswith(("+++", "---", "@@", "diff ", "index ")):
+            recent.clear()
             continue
+        if not raw:
+            continue
+
+        prefix = raw[0]
+        if prefix not in {"+", " ", "-"}:
+            continue
+
         line = raw[1:]
+
+        # Keep nearby added/context lines so strings split across a multi-line
+        # SwiftUI/localization call inherit the call site's UI context.
+        if prefix != "-":
+            recent.append(line)
+            recent = recent[-8:]
+
+        if prefix != "+":
+            continue
+
+        context = "\n".join(recent)
+        if not any(hint in context for hint in UI_HINTS):
+            continue
+
         for match in STRING_RE.finditer(line):
+            # SF Symbol names are identifiers, not user-facing strings.
+            before = line[:match.start()]
+            if re.search(r"systemName:\\s*$", before):
+                continue
+
             raw_value = match.group(1)
-            if probable_ui_literal(line, raw_value):
+            if probable_ui_literal(context, raw_value):
                 added_candidates.add(unescape_swift(raw_value))
 
     missing_added = []
