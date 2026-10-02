@@ -167,7 +167,7 @@ struct CompositorApp: App {
                     // ⌘H toggles the Move tool's transform controls instead of hiding the app, so Hide keeps its
                     // place in the app menu without the shortcut.
                     CommandGroup(replacing: .appVisibility) {
-                        Button("Hide Compositor") { NSApp.hide(nil) }
+                        Button("Hide Aips") { NSApp.hide(nil) }
                         Button("Hide Others") { NSApp.hideOtherApplications(nil) }
                             .configuredKeyboardShortcut("h", modifiers: [.command, .option])
                         Button("Show All") { NSApp.unhideAllApplications(nil) }
