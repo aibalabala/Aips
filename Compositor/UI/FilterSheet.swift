@@ -199,13 +199,13 @@ struct FilterSheet: View {
         }
         if dither.style == .scanlines {
             control("Line Spacing", \.dither.lineSpacing, range: DitherSettings.lineSpacingRange, unit: "px", decimals: 0, logarithmic: false)
-                .help("How far apart the screen's lines are")
+                .help(localized("How far apart the screen's lines are"))
             control("Glow", \.dither.glow, range: 0...100, unit: "%", decimals: 0, logarithmic: false)
-                .help("Light blooming around the lines, like a CRT's phosphors")
+                .help(localized("Light blooming around the lines, like a CRT's phosphors"))
             control("Dots", \.dither.dots, range: 0...100, unit: "%", decimals: 0, logarithmic: false)
-                .help("Break the lines into glowing beads")
+                .help(localized("Break the lines into glowing beads"))
             control("Wobble", \.dither.wobble, range: DitherSettings.wobbleRange, unit: "px", decimals: 0, logarithmic: false)
-                .help("Make the lines waver sideways down the screen, like a CRT losing sync")
+                .help(localized("Make the lines waver sideways down the screen, like a CRT losing sync"))
         }
         if dither.style.isHalftone {
             control("Cell Size", \.dither.cellSize, range: DitherSettings.cellSizeRange, unit: "px", decimals: 0, logarithmic: false)
