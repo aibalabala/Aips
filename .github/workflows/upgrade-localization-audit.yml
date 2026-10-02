@@ -6,6 +6,7 @@ on:
       - 'upgrade/v1.4.5-aips.1'
     paths:
       - '.github/workflows/upgrade-localization-audit.yml'
+      - 'scripts/localization_audit.py'
 
 permissions:
   contents: read
