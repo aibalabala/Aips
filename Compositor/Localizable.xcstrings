@@ -694,6 +694,17 @@
         }
       }
     },
+    "Aips will convert these Photoshop features. Nothing is applied until you continue.": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aips 将转换这些 Photoshop 特性，继续之前不会应用任何更改。"
+          }
+        }
+      }
+    },
     "Align %@": {
       "extractionState": "manual",
       "localizations": {
@@ -5508,6 +5519,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "在预览中隐藏%@"
+          }
+        }
+      }
+    },
+    "Hide Aips": {
+      "extractionState": "manual",
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "隐藏 Aips"
           }
         }
       }
