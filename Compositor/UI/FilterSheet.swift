@@ -189,13 +189,23 @@ struct FilterSheet: View {
                 ForEach(DitherStyle.groups[group], id: \.self) { Text(localized($0.rawValue)).tag($0) }
             }
         }
-        if dither.style != .ascii {
+        if dither.style.usesPixelSize {
         control("Pixel Size", \.dither.pixelSize, range: DitherSettings.pixelSizeRange, unit: "px", decimals: 0, logarithmic: false)
             .help(localized("Make each dithered pixel this many pixels across, for a chunky old-screen look"))
         }
         if dither.style == .ascii {
             control("Text Size", \.dither.textSize, range: DitherSettings.textSizeRange, unit: "px", decimals: 0, logarithmic: false)
                 .help(localized("The height of each line of characters"))
+        }
+        if dither.style == .scanlines {
+            control("Line Spacing", \.dither.lineSpacing, range: DitherSettings.lineSpacingRange, unit: "px", decimals: 0, logarithmic: false)
+                .help("How far apart the screen's lines are")
+            control("Glow", \.dither.glow, range: 0...100, unit: "%", decimals: 0, logarithmic: false)
+                .help("Light blooming around the lines, like a CRT's phosphors")
+            control("Dots", \.dither.dots, range: 0...100, unit: "%", decimals: 0, logarithmic: false)
+                .help("Break the lines into glowing beads")
+            control("Wobble", \.dither.wobble, range: DitherSettings.wobbleRange, unit: "px", decimals: 0, logarithmic: false)
+                .help("Make the lines waver sideways down the screen, like a CRT losing sync")
         }
         if dither.style.isHalftone {
             control("Cell Size", \.dither.cellSize, range: DitherSettings.cellSizeRange, unit: "px", decimals: 0, logarithmic: false)
@@ -237,7 +247,7 @@ struct FilterSheet: View {
                 Spacer()
             }
         }
-        if dither.pixelSize > 1, dither.style != .ascii {
+        if dither.pixelSize > 1, dither.style.usesPixelSize {
             Picker("Pixel Shape", selection: Binding(get: { dither.pixelShape }, set: { new in update { $0.dither.pixelShape = new } })) {
                 ForEach(DitherPixelShape.allCases, id: \.self) { Text(localized($0.rawValue)).tag($0) }
             }
