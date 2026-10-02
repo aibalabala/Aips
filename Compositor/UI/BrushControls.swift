@@ -79,7 +79,7 @@ struct BrushControls: View {
                     .frame(width: 42).textFieldStyle(.roundedBorder)
                     .arrowSteps(value: { Double(session.brushSettings.blurRadius) },
                                 change: { session.brushSettings.blurRadius = CGFloat(min(50, max(0.5, $0))) })
-                    .help("How far the blur softens, in pixels")
+                    .help(localized("How far the blur softens, in pixels"))
                     .unitSuffix("px")
             }
             // Paint and Erase only: healing, cloning and smearing have their own feel.
