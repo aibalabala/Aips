@@ -8,6 +8,21 @@ Example: `1.3.7-aips.1`.
 
 The macOS app's `CFBundleShortVersionString` remains the numeric upstream-compatible version (for example `1.3.7`). The Aips revision is tracked by Git tags, `AIPS_VERSION`, release notes, and build metadata.
 
+## 1.4.5-aips.1 — 2026-10-02
+
+Base: Compositor v1.4.5.
+
+### Upstream synchronization
+- Synced Compositor v1.4 through v1.4.5.
+- Adopted the GPU canvas rendering path and associated rendering/performance fixes.
+- Adopted updated transform, tab, layer-mask, Smudge, Liquify, Blur, Dither/CRT, and Camera Raw behavior.
+- Preserved Aips branding, bundle identifier, Swift module compatibility, test-host configuration, and ad-hoc nested-code re-signing.
+
+### Simplified Chinese
+- Audited all v1.3.7 → v1.4.5 upstream UI changes.
+- Added Simplified Chinese coverage for new CRT Scanlines controls, mask-view interactions, transform modifier hints, Camera Raw curve guidance, Ungroup Layers, project-tab overflow labels, and related help text.
+- Localization catalog audit: 0 missing/incomplete zh-Hans keys and 0 uncovered new UI candidates.
+
 ## 1.3.7-aips.2 — 2026-09-28
 
 Base: Compositor v1.3.7.
