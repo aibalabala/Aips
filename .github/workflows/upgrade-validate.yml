@@ -1,0 +1,171 @@
+name: Upgrade v1.4.5 Full Validation
+
+on:
+  push:
+    branches:
+      - 'upgrade/v1.4.5-aips.1'
+    paths:
+      - '.github/workflows/upgrade-validate.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: macos-26
+    timeout-minutes: 90
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@v4
+
+      - name: Show environment
+        run: |
+          sw_vers
+          uname -m
+          xcodebuild -version
+          swift --version
+          echo "Aips: $(cat AIPS_VERSION)"
+          echo "Upstream: $(cat UPSTREAM_VERSION)"
+
+      - name: Select Xcode 26.6
+        run: sudo xcode-select -s /Applications/Xcode_26.6.app
+
+      - name: Resolve Swift packages
+        run: >
+          xcodebuild -resolvePackageDependencies
+          -project Compositor.xcodeproj
+          -scheme Compositor
+          -onlyUsePackageVersionsFromResolvedFile
+
+      - name: Build for testing
+        id: testbuild
+        run: >
+          xcodebuild build-for-testing
+          -project Compositor.xcodeproj
+          -scheme Compositor
+          -destination 'platform=macOS,arch=arm64'
+          -configuration Debug
+          -derivedDataPath DerivedDataTests
+          CODE_SIGN_IDENTITY=-
+
+      - name: Run tests in parallel
+        run: >
+          xcodebuild test-without-building
+          -project Compositor.xcodeproj
+          -scheme Compositor
+          -destination 'platform=macOS,arch=arm64'
+          -derivedDataPath DerivedDataTests
+          -resultBundlePath ParallelResults.xcresult
+          -parallel-testing-enabled YES
+          -skip-testing:CompositorTests/FloatingPanelTests
+          -skip-testing:CompositorTests/SliderSnapTests
+
+      - name: Run window tests serially
+        run: >
+          xcodebuild test-without-building
+          -project Compositor.xcodeproj
+          -scheme Compositor
+          -destination 'platform=macOS,arch=arm64'
+          -derivedDataPath DerivedDataTests
+          -resultBundlePath SerialResults.xcresult
+          -parallel-testing-enabled NO
+          -only-testing:CompositorTests/FloatingPanelTests
+          -only-testing:CompositorTests/SliderSnapTests
+
+      - name: Build ARM64 Release
+        run: >
+          xcodebuild
+          -project Compositor.xcodeproj
+          -scheme Compositor
+          -configuration Release
+          -destination 'platform=macOS,arch=arm64'
+          -derivedDataPath DerivedDataARM
+          MARKETING_VERSION=1.4.5
+          CODE_SIGN_IDENTITY=-
+          build
+
+      - name: Re-sign and verify ARM64 app
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP="DerivedDataARM/Build/Products/Release/Aips.app"
+          while IFS= read -r -d '' item; do
+            /usr/bin/codesign --force --sign - "$item"
+          done < <(
+            find "$APP/Contents" -depth               \( -name '*.framework' -o -name '*.dylib' -o -name '*.xpc' -o -name '*.app' \)               -print0
+          )
+          /usr/bin/codesign --force --deep --sign - "$APP"
+          /usr/bin/codesign --verify --deep --strict --verbose=2 "$APP"
+          file "$APP/Contents/MacOS/Aips"
+
+      - name: Build Universal 2 Release
+        run: >
+          xcodebuild
+          -project Compositor.xcodeproj
+          -scheme Compositor
+          -configuration Release
+          -destination 'generic/platform=macOS'
+          -derivedDataPath DerivedDataUniversal
+          ARCHS='arm64 x86_64'
+          ONLY_ACTIVE_ARCH=NO
+          MARKETING_VERSION=1.4.5
+          CODE_SIGN_IDENTITY=-
+          build
+
+      - name: Re-sign and verify Universal 2 app
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP="DerivedDataUniversal/Build/Products/Release/Aips.app"
+          while IFS= read -r -d '' item; do
+            /usr/bin/codesign --force --sign - "$item"
+          done < <(
+            find "$APP/Contents" -depth               \( -name '*.framework' -o -name '*.dylib' -o -name '*.xpc' -o -name '*.app' \)               -print0
+          )
+          /usr/bin/codesign --force --deep --sign - "$APP"
+          /usr/bin/codesign --verify --deep --strict --verbose=2 "$APP"
+
+          BIN="$APP/Contents/MacOS/Aips"
+          ARCHS="$(lipo -archs "$BIN")"
+          echo "Main executable architectures: $ARCHS"
+          echo "$ARCHS" | grep -qw arm64
+          echo "$ARCHS" | grep -qw x86_64
+
+          failed=0
+          while IFS= read -r -d '' f; do
+            if file "$f" | grep -q 'Mach-O'; then
+              archs="$(lipo -archs "$f" 2>/dev/null || true)"
+              echo "$f :: $archs"
+              if [[ "$archs" != *"arm64"* || "$archs" != *"x86_64"* ]]; then
+                echo "::error::Non-universal Mach-O: $f ($archs)"
+                failed=1
+              fi
+            fi
+          done < <(find "$APP" -type f -print0)
+          exit "$failed"
+
+      - name: Build candidate DMG
+        shell: bash
+        run: |
+          set -euo pipefail
+          STAGE="$RUNNER_TEMP/dmg-stage"
+          APP="DerivedDataUniversal/Build/Products/Release/Aips.app"
+          DMG="Aips-1.4.5-aips.1-macOS-universal2-adhoc.dmg"
+          mkdir -p "$STAGE"
+          ditto "$APP" "$STAGE/Aips.app"
+          ln -s /Applications "$STAGE/Applications"
+          hdiutil create             -volname "Aips 1.4.5-aips.1"             -srcfolder "$STAGE"             -ov             -format UDZO             "$DMG"
+          hdiutil verify "$DMG"
+          shasum -a 256 "$DMG" > "$DMG.sha256"
+
+      - name: Upload candidate DMG and test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aips-1.4.5-aips.1-validation
+          path: |
+            Aips-1.4.5-aips.1-macOS-universal2-adhoc.dmg
+            Aips-1.4.5-aips.1-macOS-universal2-adhoc.dmg.sha256
+            *.xcresult
+          if-no-files-found: ignore
+          retention-days: 14
