@@ -169,3 +169,5 @@ jobs:
             *.xcresult
           if-no-files-found: ignore
           retention-days: 14
+
+# Final validation trigger: 2026-10-02
