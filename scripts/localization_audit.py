@@ -122,7 +122,7 @@ def main() -> int:
         for match in STRING_RE.finditer(line):
             # SF Symbol names are identifiers, not user-facing strings.
             before = line[:match.start()]
-            if re.search(r"(?:systemName|accessibilityIdentifier):\s*$", before):
+            if re.search(r"(?:systemName:\s*|accessibilityIdentifier:\s*|\\.accessibilityIdentifier\\(\\s*)$", before):
                 continue
 
             raw_value = match.group(1)
