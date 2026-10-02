@@ -15,13 +15,22 @@ UI_HINTS = (
 )
 
 STRING_RE = re.compile(r'"((?:\\.|[^"\\])*)"')
+UI_CALL_RE = re.compile(r"(?<![A-Za-z0-9_])(Text|Button|Label|Menu|Picker|Toggle|Section|GroupBox)\\(")
+
+
+def has_ui_hint(text: str) -> bool:
+    return bool(UI_CALL_RE.search(text)) or any(hint in text for hint in (
+        ".help(", "navigationTitle(", "String(localized:", "localized(",
+        "withTitle:", "messageText", "informativeText", "title:", "prompt:",
+        "NSMenuItem(",
+    ))
 
 
 def git_diff(base_ref: str, latest_ref: str) -> str:
     if not base_ref or not latest_ref or base_ref == latest_ref:
         return ""
     proc = subprocess.run(
-        ["git", "diff", "--unified=4", base_ref, latest_ref, "--", "*.swift"],
+        ["git", "diff", "--unified=4", base_ref, latest_ref, "--", "Compositor"],
         check=True,
         capture_output=True,
         text=True,
@@ -40,7 +49,7 @@ def unescape_swift(value: str) -> str:
 
 
 def probable_ui_literal(line: str, value: str) -> bool:
-    if not any(hint in line for hint in UI_HINTS):
+    if not has_ui_hint(line):
         return False
     if len(value.strip()) < 2:
         return False
@@ -107,13 +116,13 @@ def main() -> int:
             continue
 
         context = "\n".join(recent)
-        if not any(hint in context for hint in UI_HINTS):
+        if not has_ui_hint(context):
             continue
 
         for match in STRING_RE.finditer(line):
             # SF Symbol names are identifiers, not user-facing strings.
             before = line[:match.start()]
-            if re.search(r"(?:systemName|accessibilityIdentifier):\\s*$", before):
+            if re.search(r"(?:systemName|accessibilityIdentifier):\s*$", before):
                 continue
 
             raw_value = match.group(1)
