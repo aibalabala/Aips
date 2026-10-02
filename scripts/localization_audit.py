@@ -15,7 +15,7 @@ UI_HINTS = (
 )
 
 STRING_RE = re.compile(r'"((?:\\.|[^"\\])*)"')
-UI_CALL_RE = re.compile(r"(?<![A-Za-z0-9_])(Text|Button|Label|Menu|Picker|Toggle|Section|GroupBox)\\(")
+UI_CALL_RE = re.compile(r"(?<![A-Za-z0-9_])(Text|Button|Label|Menu|Picker|Toggle|Section|GroupBox)\(")
 
 
 def has_ui_hint(text: str) -> bool:
