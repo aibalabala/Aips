@@ -1,0 +1,36 @@
+name: Upgrade v1.4.5 Targeted Tests
+
+on:
+  push:
+    branches:
+      - 'upgrade/v1.4.5-aips.1'
+    paths:
+      - '.github/workflows/upgrade-targeted-tests.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  targeted:
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo xcode-select -s /Applications/Xcode_26.6.app
+      - name: Resolve packages
+        run: >
+          xcodebuild -resolvePackageDependencies
+          -project Compositor.xcodeproj
+          -scheme Compositor
+          -onlyUsePackageVersionsFromResolvedFile
+      - name: Run regression tests serially
+        run: >
+          xcodebuild test
+          -project Compositor.xcodeproj
+          -scheme Compositor
+          -destination 'platform=macOS,arch=arm64'
+          -derivedDataPath DerivedDataTargeted
+          -parallel-testing-enabled NO
+          -only-testing:CompositorTests/NativeResolutionPaintTests/layersPanelSaysHowFarALayerIsScaled
+          -only-testing:CompositorTests/SelectionEditTests/invertWorksInEveryTool
+          CODE_SIGN_IDENTITY=-
